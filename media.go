@@ -40,21 +40,8 @@ type contentInfo struct {
 	streams        []stream
 }
 
-func getVideoURL(videoID string) (string, error) {
-	videoInfo, err := getVideoInfo(videoID)
-	if err != nil {
-		return "", err
-	}
-
-	targetURL, err := getDownloadableURL(videoInfo.streams)
-	if err != nil {
-		return "", err
-	}
-	return targetURL, nil
-}
-
-func convert(videoURL, audioPath string) error {
-	cmd := exec.Command("ffmpeg", "-ss", "30", "-i", videoURL, "-acodec", "libmp3lame", "-ab", "256k", "-f", "mp3", audioPath)
+func downloadAndConvert(videoURL, audioPath string) error {
+	cmd := exec.Command("ffmpeg", "-i", videoURL, "-acodec", "libmp3lame", "-ab", "256k", "-f", "mp3", audioPath)
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
@@ -170,13 +157,13 @@ func parseVideoStreams(strStreams string) ([]stream, error) {
 // getDownloadableURL obtains downloadable url from Youtube
 // type video/mp4 is douwnloaded
 // seek from lower resolution (small > medium > hd720)
-func getDownloadableURL(streams []stream) (string, error) {
+func (info *contentInfo) getDownloadableURL() (string, error) {
 	var targetStream *stream
 
 	for _, quality := range qualities {
-		for i, s := range streams {
+		for i, s := range info.streams {
 			if s.quality == quality && strings.Contains(s.mediaType, targetType) {
-				targetStream = &streams[i]
+				targetStream = &info.streams[i]
 				break
 			}
 		}

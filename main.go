@@ -3,11 +3,13 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"path"
+	"time"
 
 	"github.com/labstack/echo"
 )
@@ -27,27 +29,60 @@ func init() {
 	flag.Parse()
 }
 
+func allocateFile(videoID string) string {
+	return path.Join(audiosDir, fmt.Sprintf("%s.mp3", videoID))
+}
+
+func openAudio(audioURL string) (io.Reader, error) {
+	return os.Open(audioURL)
+}
+
 func convertHandler(c echo.Context) error {
 	videoID := c.Param("videoID")
 
-	audioPath := path.Join(audiosDir, fmt.Sprintf("%s.mp3", videoID))
-	if !exists(audioPath) {
-		videoURL, err := getVideoURL(videoID)
-		if err != nil {
+	audio, err := searchAudioInfo(videoID)
+	if err != nil && err == errRecordNotFound {
+		// Downlod video from Youtube and convert it to mp3
+		audioPath := allocateFile(videoID)
+		info, infoErr := getVideoInfo(videoID)
+		if infoErr != nil {
 			return c.String(http.StatusInternalServerError, fmt.Sprint(err))
 		}
 
-		if err := convert(videoURL, audioPath); err != nil {
+		videoURL, downloadURLErr := info.getDownloadableURL()
+		if downloadURLErr != nil {
 			return c.String(http.StatusInternalServerError, fmt.Sprint(err))
 		}
+
+		if err = downloadAndConvert(videoURL, audioPath); err != nil {
+			return c.String(http.StatusInternalServerError, fmt.Sprint(err))
+		}
+
+		audio = &audioInfo{
+			videoID:      videoID,
+			title:        info.title,
+			author:       info.author,
+			thumbnailURL: info.thumbnailURL,
+			length:       info.lengthSeconds,
+			audioURL:     audioPath,
+			keywords:     info.keywords,
+			convertedAt:  time.Now().Unix(),
+		}
+		logger.Print(audio)
+		if err = insertAudioInfo(audio); err != nil {
+			logger.Print(err)
+		}
+	} else if err != nil {
+		return c.String(http.StatusInternalServerError, fmt.Sprint(err))
 	}
 
-	f, err := os.Open(audioPath)
+	// Response to a client
+	r, err := openAudio(audio.audioURL)
 	if err != nil {
 		logger.Print(err)
 		return c.String(http.StatusInternalServerError, fmt.Sprint(err))
 	}
-	audioData, err := ioutil.ReadAll(f)
+	audioData, err := ioutil.ReadAll(r)
 	if err != nil {
 		logger.Print(err)
 		return c.String(http.StatusInternalServerError, fmt.Sprint(err))
