@@ -1,0 +1,51 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: audiube
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        name: audiube
+        tier: backend
+    spec:
+      containers:
+      - name: audiube-server
+        image: gcr.io/audiube/audiube:v1.0
+        ports:
+        - containerPort: 1234
+          protocol: TCP
+        imagePullPolicy: Always
+        env:
+          - name: DATABASE_HOST
+            value: 127.0.0.1
+          - name: DATABASE_PORT
+            value: "5432"
+          - name: DATABASE_NAME
+            value: postgres
+          - name: DATABASE_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: cloudsql-db-credentials
+                key: username
+          - name: DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: cloudsql-db-credentials
+                key: password
+      - name: cloudsql-proxy
+        image: gcr.io/cloudsql-docker/gce-proxy:1.11
+        command: ["/cloud_sql_proxy",
+                  "-instances=audiube:asia-northeast1:audio-db=tcp:5432",
+                  "-credential_file=/secrets/cloudsql/credentials.json"]
+        volumeMounts:
+          - name: cloudsql-instance-credentials
+            mountPath: /secrets/cloudsql
+            readOnly: true
+      volumes:
+        - name: cloudsql-instance-credentials
+          secret:
+            secretName: cloudsql-instance-credentials

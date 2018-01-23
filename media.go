@@ -186,7 +186,6 @@ func (info *contentInfo) getDownloadableURL() (string, error) {
 				return errRedirectAttempted
 			},
 		}
-		logger.Printf("request to %s", targetURL)
 		res, err := client.Head(targetURL)
 		if urlErr, ok := err.(*url.Error); ok && urlErr.Err == errRedirectAttempted {
 			if redirectionCounter > reqAttempMax {

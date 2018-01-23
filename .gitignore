@@ -1,2 +1,6 @@
 audube
 audios/
+
+vendor/
+
+*.json

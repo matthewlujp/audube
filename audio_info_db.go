@@ -12,6 +12,7 @@ import (
 )
 
 var (
+	dbHost            string
 	dbName            string
 	userName          string
 	password          string
@@ -32,9 +33,10 @@ type audioInfo struct {
 }
 
 func init() {
+	dbHost = os.Getenv("DATABASE_HOST")
 	dbName = os.Getenv("DATABASE_NAME")
-	userName = os.Getenv("USER_NAME")
-	password = os.Getenv("PASSWORD")
+	userName = os.Getenv("DATABASE_USERNAME")
+	password = os.Getenv("DATABASE_PASSWORD")
 	dbPortStr := os.Getenv("DATABASE_PORT")
 	tableName = os.Getenv("TABLE_NAME")
 
@@ -70,7 +72,7 @@ func (info *audioInfo) decodeKeywords(encoded string) {
 }
 
 func openAudioInfoDB() (*sql.DB, error) {
-	params := fmt.Sprintf("user=%s password=%s dbname=%s host=localhost port=%d sslmode=disable", userName, password, dbName, dbPort)
+	params := fmt.Sprintf("user=%s password=%s dbname=%s host=%s port=%d sslmode=disable", userName, password, dbName, dbHost, dbPort)
 	db, err := sql.Open("postgres", params)
 	if err != nil {
 		logger.Printf("open sql, %s", err)

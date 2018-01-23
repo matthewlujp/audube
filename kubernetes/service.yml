@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: audiube
+  labels:
+    name: audiube
+spec:
+  selector:
+    name: audiube
+  type: LoadBalancer
+  ports:
+    - port: 80
+      name: http
+      targetPort: 1234
