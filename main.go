@@ -3,12 +3,10 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
-	"path"
 	"time"
 
 	"github.com/labstack/echo"
@@ -27,14 +25,6 @@ var (
 func init() {
 	verbose = flag.Bool("v", false, "whether to show detail logs")
 	flag.Parse()
-}
-
-func allocateFile(videoID string) string {
-	return path.Join(audiosDir, fmt.Sprintf("%s.mp3", videoID))
-}
-
-func openAudio(audioURL string) (io.Reader, error) {
-	return os.Open(audioURL)
 }
 
 func convertHandler(c echo.Context) error {
@@ -58,7 +48,7 @@ func convertHandler(c echo.Context) error {
 		if tmpErr != nil {
 			return c.String(http.StatusInternalServerError, fmt.Sprint(err))
 		}
-		defer tmpfile.Close()
+		defer os.Remove(tmpfile.Name())
 
 		if err = downloadAndConvert(videoURL, tmpfile.Name()); err != nil {
 			return c.String(http.StatusInternalServerError, fmt.Sprint(err))
@@ -67,7 +57,7 @@ func convertHandler(c echo.Context) error {
 		// Save to Cloud Storage in GCP
 		audioPath, putErr := storagePut(videoID, tmpfile)
 		if putErr != nil {
-			return c.String(http.StatusInternalServerError, fmt.Sprintf("saving video %s failed, %s", info.title, err))
+			return c.String(http.StatusInternalServerError, fmt.Sprintf("saving video %s failed, %s", info.title, putErr))
 		}
 
 		audio = &audioInfo{
@@ -82,7 +72,7 @@ func convertHandler(c echo.Context) error {
 		}
 		logger.Print(audio)
 		if err = insertAudioInfo(audio); err != nil {
-			logger.Print(err)
+			return c.String(http.StatusInternalServerError, fmt.Sprint(err))
 		}
 	} else if err != nil {
 		return c.String(http.StatusInternalServerError, fmt.Sprint(err))

@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: audiube-server
-        image: gcr.io/audiube/audiube:v1.0
+        image: gcr.io/audiube/audiube:v1.4
         ports:
         - containerPort: 1234
           protocol: TCP

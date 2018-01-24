@@ -88,7 +88,7 @@ func insertAudioInfo(info *audioInfo) error {
 	}
 	defer db.Close()
 
-	query := fmt.Sprintf(`INSERT INTO %s(video_id, title, author, thumbnail_url, length, audio_url, keywords, converted_at)
+	query := fmt.Sprintf(`INSERT INTO %s(video_id, title, author, thumbnail_url, length, audio_path, keywords, converted_at)
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, tableName)
 	stmt, err := db.Prepare(query)
 	if err != nil {

@@ -41,7 +41,7 @@ type contentInfo struct {
 }
 
 func downloadAndConvert(videoURL, audioPath string) error {
-	cmd := exec.Command("ffmpeg", "-i", videoURL, "-acodec", "libmp3lame", "-ab", "256k", "-f", "mp3", audioPath)
+	cmd := exec.Command("ffmpeg", "-y", "-i", videoURL, "-acodec", "libmp3lame", "-ab", "256k", "-f", "mp3", audioPath)
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
