@@ -27,37 +27,35 @@ func init() {
 	flag.Parse()
 }
 
-func convertHandler(c echo.Context) error {
-	videoID := c.Param("videoID")
-
+func obtainAudio(videoID string) ([]byte, error) {
 	audio, err := searchAudioInfo(videoID)
 	if err != nil && err == errRecordNotFound {
 		// Get Downlodable video URL
 		info, infoErr := getVideoInfo(videoID)
 		if infoErr != nil {
-			return c.String(http.StatusInternalServerError, fmt.Sprint(err))
+			return nil, err
 		}
 
 		videoURL, downloadURLErr := info.getDownloadableURL()
 		if downloadURLErr != nil {
-			return c.String(http.StatusInternalServerError, fmt.Sprint(err))
+			return nil, err
 		}
 
 		// Convert mp4 to mp3 with FFmpeg and save to file
 		tmpfile, tmpErr := ioutil.TempFile("", "AudioTmpFile")
 		if tmpErr != nil {
-			return c.String(http.StatusInternalServerError, fmt.Sprint(err))
+			return nil, err
 		}
 		defer os.Remove(tmpfile.Name())
 
 		if err = downloadAndConvert(videoURL, tmpfile.Name()); err != nil {
-			return c.String(http.StatusInternalServerError, fmt.Sprint(err))
+			return nil, err
 		}
 
 		// Save to Cloud Storage in GCP
 		audioPath, putErr := storagePut(videoID, tmpfile)
 		if putErr != nil {
-			return c.String(http.StatusInternalServerError, fmt.Sprintf("saving video %s failed, %s", info.title, putErr))
+			return nil, fmt.Errorf("saving video %s failed, %s", info.title, putErr)
 		}
 
 		audio = &audioInfo{
@@ -72,33 +70,26 @@ func convertHandler(c echo.Context) error {
 		}
 		logger.Print(audio)
 		if err = insertAudioInfo(audio); err != nil {
-			return c.String(http.StatusInternalServerError, fmt.Sprint(err))
+			return nil, err
 		}
 	} else if err != nil {
-		return c.String(http.StatusInternalServerError, fmt.Sprint(err))
+		return nil, err
 	}
 
 	// Response to a client
 	r, exist, err := storageGet(videoID)
 	if err != nil {
-		return c.String(http.StatusInternalServerError, fmt.Sprint(err))
+		return nil, fmt.Errorf("retrieving %s/%s from GCS, %s", bucketName, audio.audioPath, err)
 	} else if !exist {
-		return c.String(http.StatusInternalServerError, fmt.Sprintf("%s not exist", audio.audioPath))
+		return nil, fmt.Errorf("%s/%s not found", bucketName, audio.audioPath)
 	}
 	defer r.Close()
 	audioData, err := ioutil.ReadAll(r)
 	if err != nil {
 		logger.Print(err)
-		return c.String(http.StatusInternalServerError, fmt.Sprint(err))
+		return nil, err
 	}
-	return c.Blob(http.StatusOK, "audio/mpeg", audioData)
-}
-
-func exists(path string) bool {
-	if _, err := os.Stat(path); err != nil {
-		return false
-	}
-	return true
+	return audioData, nil
 }
 
 func main() {
@@ -107,6 +98,13 @@ func main() {
 	}
 
 	e := echo.New()
-	e.GET("/:videoID", convertHandler)
+	e.GET("/audio", func(c echo.Context) error {
+		videoID := c.QueryParam("id")
+		audioData, err := obtainAudio(videoID)
+		if err != nil {
+			return c.String(http.StatusInternalServerError, fmt.Sprint(err))
+		}
+		return c.Blob(http.StatusOK, "audio/mpeg", audioData)
+	})
 	e.Logger.Fatal(e.Start(":1234"))
 }
