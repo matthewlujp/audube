@@ -27,7 +27,7 @@ type audioInfo struct {
 	author       string
 	thumbnailURL string
 	length       int64
-	audioURL     string
+	audioPath    string
 	keywords     []string
 	convertedAt  int64
 }
@@ -96,7 +96,7 @@ func insertAudioInfo(info *audioInfo) error {
 		return err
 	}
 	_, err = stmt.Exec(info.videoID, info.title, info.author, info.thumbnailURL,
-		info.length, info.audioURL, info.encodeKeywords(), info.convertedAt)
+		info.length, info.audioPath, info.encodeKeywords(), info.convertedAt)
 	if err != nil {
 		logger.Printf("insert audio info into db, %s", err)
 	}
@@ -127,7 +127,7 @@ func searchAudioInfo(videoID string) (*audioInfo, error) {
 		keywords string
 	)
 	if err := rows.Scan(&info.videoID, &info.title, &info.author, &info.thumbnailURL,
-		&info.length, &info.audioURL, &keywords, &info.convertedAt); err != nil {
+		&info.length, &info.audioPath, &keywords, &info.convertedAt); err != nil {
 		logger.Printf("parse query result, %s", err)
 		return nil, err
 	}

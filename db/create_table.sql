@@ -1,3 +1,5 @@
+DROP TABLE IF EXISTS audio_info;
+
 CREATE TABLE audio_info
 (
     video_id varchar(20) PRIMARY KEY,
@@ -5,7 +7,7 @@ CREATE TABLE audio_info
     author varchar(100),
     thumbnail_url varchar(100),
     length integer,
-    audio_url varchar(100) NOT NULL,
+    audio_path varchar(100) NOT NULL,
     keywords text,
     converted_at integer NOT NULL
 )

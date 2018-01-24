@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	videosDir = "./videos"
 	audiosDir = "./audios"
+	projectID = "audiube"
 )
 
 var (
@@ -42,8 +42,7 @@ func convertHandler(c echo.Context) error {
 
 	audio, err := searchAudioInfo(videoID)
 	if err != nil && err == errRecordNotFound {
-		// Downlod video from Youtube and convert it to mp3
-		audioPath := allocateFile(videoID)
+		// Get Downlodable video URL
 		info, infoErr := getVideoInfo(videoID)
 		if infoErr != nil {
 			return c.String(http.StatusInternalServerError, fmt.Sprint(err))
@@ -54,8 +53,21 @@ func convertHandler(c echo.Context) error {
 			return c.String(http.StatusInternalServerError, fmt.Sprint(err))
 		}
 
-		if err = downloadAndConvert(videoURL, audioPath); err != nil {
+		// Convert mp4 to mp3 with FFmpeg and save to file
+		tmpfile, tmpErr := ioutil.TempFile("", "AudioTmpFile")
+		if tmpErr != nil {
 			return c.String(http.StatusInternalServerError, fmt.Sprint(err))
+		}
+		defer tmpfile.Close()
+
+		if err = downloadAndConvert(videoURL, tmpfile.Name()); err != nil {
+			return c.String(http.StatusInternalServerError, fmt.Sprint(err))
+		}
+
+		// Save to Cloud Storage in GCP
+		audioPath, putErr := storagePut(videoID, tmpfile)
+		if putErr != nil {
+			return c.String(http.StatusInternalServerError, fmt.Sprintf("saving video %s failed, %s", info.title, err))
 		}
 
 		audio = &audioInfo{
@@ -64,7 +76,7 @@ func convertHandler(c echo.Context) error {
 			author:       info.author,
 			thumbnailURL: info.thumbnailURL,
 			length:       info.lengthSeconds,
-			audioURL:     audioPath,
+			audioPath:    audioPath,
 			keywords:     info.keywords,
 			convertedAt:  time.Now().Unix(),
 		}
@@ -77,11 +89,13 @@ func convertHandler(c echo.Context) error {
 	}
 
 	// Response to a client
-	r, err := openAudio(audio.audioURL)
+	r, exist, err := storageGet(videoID)
 	if err != nil {
-		logger.Print(err)
 		return c.String(http.StatusInternalServerError, fmt.Sprint(err))
+	} else if !exist {
+		return c.String(http.StatusInternalServerError, fmt.Sprintf("%s not exist", audio.audioPath))
 	}
+	defer r.Close()
 	audioData, err := ioutil.ReadAll(r)
 	if err != nil {
 		logger.Print(err)
@@ -98,9 +112,6 @@ func exists(path string) bool {
 }
 
 func main() {
-	if err := os.MkdirAll(videosDir, 0777); err != nil && !os.IsExist(err) {
-		logger.Fatal(err)
-	}
 	if err := os.MkdirAll(audiosDir, 0777); err != nil && !os.IsExist(err) {
 		logger.Fatal(err)
 	}
